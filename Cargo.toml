@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 async-nats = "0.47.0"
+async-trait = "0.1.89"
 bytes = "1.11.1"
 futures = "0.3.32"
 tokio = "1.51.0"

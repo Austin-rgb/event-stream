@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_nats::Client;
 pub use async_nats::Error;
 use bytes::Bytes;
@@ -14,16 +16,14 @@ impl NatsEventStream {
 
 use futures::StreamExt;
 
-use crate::{BoxFuture, EventHandler, EventStream};
+use crate::{BoxFuture, EventError, EventStream, Handler};
 
 impl EventStream for NatsEventStream {
-    type Error = async_nats::Error;
-
     fn publish<'a>(
         &'a self,
         subject: String,
         payload: Vec<u8>,
-    ) -> BoxFuture<'a, Result<(), Self::Error>> {
+    ) -> BoxFuture<'a, Result<(), EventError>> {
         Box::pin(async move {
             self.client
                 .publish(subject, payload.into())
@@ -35,14 +35,14 @@ impl EventStream for NatsEventStream {
     fn subscribe<'a>(
         &'a self,
         subject: String,
-        handler: EventHandler,
-    ) -> BoxFuture<'a, Result<(), Self::Error>> {
+        handler: Arc<dyn Handler>,
+    ) -> BoxFuture<'a, Result<(), EventError>> {
         Box::pin(async move {
             let mut sub = self.client.subscribe(subject).await?;
 
             tokio::spawn(async move {
                 while let Some(msg) = sub.next().await {
-                    (handler)(msg.payload.to_vec()).await;
+                    handler.handle(msg.payload.to_vec());
                 }
             });
 
