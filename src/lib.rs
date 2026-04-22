@@ -9,7 +9,7 @@ pub type EventHandler =
 
 #[async_trait]
 pub trait Handler: Send + Sync + 'static {
-    async fn handle(&self, message: Vec<u8>);
+    async fn handle(&self, subject: String, message: Vec<u8>);
 }
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;

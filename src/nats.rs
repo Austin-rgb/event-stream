@@ -42,7 +42,9 @@ impl EventStream for NatsEventStream {
 
             tokio::spawn(async move {
                 while let Some(msg) = sub.next().await {
-                    handler.handle(msg.payload.to_vec());
+                    handler
+                        .handle(msg.subject.into_string(), msg.payload.to_vec())
+                        .await;
                 }
             });
 
