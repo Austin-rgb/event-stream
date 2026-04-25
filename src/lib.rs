@@ -1,8 +1,9 @@
 use async_trait::async_trait;
+use serde::Serialize;
+use serde_json::to_string;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-
 pub type EventError = Box<dyn std::error::Error + Send + Sync>;
 pub type EventHandler =
     Box<dyn Fn(Vec<u8>) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
@@ -29,3 +30,23 @@ pub trait EventStream: Send + Sync {
 }
 
 pub mod nats;
+
+#[async_trait]
+pub trait Publishable: Serialize {
+    const SUBJECT: &'static str;
+
+    async fn publish(&self, bus: Arc<dyn EventStream>) -> Result<(), EventError> {
+        bus.publish(
+            Self::SUBJECT.to_string(),
+            to_string(self).unwrap().into_bytes(),
+        )
+        .await
+    }
+
+    async fn subscribe(
+        bus: Arc<dyn EventStream>,
+        handler: Arc<dyn Handler>,
+    ) -> Result<(), EventError> {
+        bus.subscribe(Self::SUBJECT.to_string(), handler).await
+    }
+}

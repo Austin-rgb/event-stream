@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_nats::Client;
 pub use async_nats::Error;
-use bytes::Bytes;
+
 pub struct NatsEventStream {
     client: Client,
 }
