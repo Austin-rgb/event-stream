@@ -255,6 +255,8 @@ dependencies = [
  "async-trait",
  "bytes",
  "futures",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 
