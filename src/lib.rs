@@ -3,6 +3,10 @@ use serde::Serialize;
 use serde_json::to_string;
 use std::future::Future;
 use std::pin::Pin;
+mod envelop;
+pub use envelop::{Event, EventMetaData};
+mod deps;
+pub use crate::deps::OrphanWrapper;
 use std::sync::Arc;
 pub type EventError = Box<dyn std::error::Error + Send + Sync>;
 pub type EventHandler =
