@@ -13,4 +13,4 @@ serde_json = "1.0.149"
 tokio = "1.51.0"
 ferrumec = { path = "../ferrumec" }
 jiff = { version = "0.2.24", features = ["serde"] }
-uuid = "1.23.1"
+uuid = { version = "1.23.1", features = ["serde", "v4"] }
