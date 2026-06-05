@@ -32,6 +32,7 @@ pub trait EventStream: Send + Sync {
 }
 
 pub mod nats;
+pub use nats::NatsEventStream;
 
 #[async_trait]
 pub trait Publishable: Serialize {
