@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use serde::Serialize;
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json::to_string;
 use std::future::Future;
 use std::pin::Pin;
@@ -51,5 +51,41 @@ pub trait Publishable: Serialize {
         handler: Arc<dyn Handler>,
     ) -> Result<(), EventError> {
         bus.subscribe(Self::SUBJECT.to_string(), handler).await
+    }
+}
+
+#[async_trait]
+pub trait Subscribable: DeserializeOwned + Send + Sync + 'static {
+    const SUBJECT: &'static str;
+
+    // Now receives the full Event<T> with metadata
+    async fn on_message(&self, metadata: &EventMetaData, subject: &str);
+
+    async fn subscribe(es: Arc<dyn EventStream>) -> Result<(), EventError> {
+        struct MessageHandler<T: Subscribable> {
+            _marker: std::marker::PhantomData<T>,
+        }
+
+        #[async_trait]
+        impl<T: Subscribable> Handler for MessageHandler<T> {
+            async fn handle(&self, subject: String, message: Vec<u8>) {
+                // Deserialize the full Event<T>
+                match serde_json::from_slice::<Event<T>>(&message) {
+                    Ok(event) => {
+                        // Pass both payload and metadata
+                        event.payload.on_message(&event.metadata, &subject).await;
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to deserialize event on {}: {}", subject, e);
+                    }
+                }
+            }
+        }
+
+        let handler = Arc::new(MessageHandler::<Self> {
+            _marker: std::marker::PhantomData,
+        });
+
+        es.subscribe(Self::SUBJECT.to_string(), handler).await
     }
 }

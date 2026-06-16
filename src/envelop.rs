@@ -59,8 +59,8 @@ impl EventMetaData {
     }
 }
 
-#[derive(Serialize)]
-pub struct Event<T: Publishable> {
+#[derive(Serialize, Deserialize)]
+pub struct Event<T> {
     pub metadata: EventMetaData,
     pub payload: T,
 }
