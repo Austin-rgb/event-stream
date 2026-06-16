@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::to_string;
-use std::future::Future;
 use std::pin::Pin;
+use std::{future::Future, marker::PhantomData};
 mod envelop;
 pub use envelop::{Event, EventMetaData};
 use std::sync::Arc;
@@ -54,26 +54,29 @@ pub trait Publishable: Serialize {
     }
 }
 
-#[async_trait]
 pub trait Subscribable: DeserializeOwned + Send + Sync + 'static {
     const SUBJECT: &'static str;
+}
 
+#[async_trait]
+pub trait Subscriber<T: Subscribable>: Send + Sync + Sized + 'static {
     // Now receives the full Event<T> with metadata
-    async fn on_message(&self, metadata: &EventMetaData, subject: &str);
+    async fn on_message(&self, metadata: &Event<T>, subject: &str);
 
-    async fn subscribe(es: Arc<dyn EventStream>) -> Result<(), EventError> {
-        struct MessageHandler<T: Subscribable> {
-            _marker: std::marker::PhantomData<T>,
+    async fn subscribe(self, es: Arc<dyn EventStream>) -> Result<(), EventError> {
+        struct MessageHandler<C: Subscriber<T> + Send + Sync + 'static, T: Subscribable> {
+            subscriber: C,
+            _marker: PhantomData<T>,
         }
 
         #[async_trait]
-        impl<T: Subscribable> Handler for MessageHandler<T> {
+        impl<C: Subscriber<T> + Send + Sync + 'static, T: Subscribable> Handler for MessageHandler<C, T> {
             async fn handle(&self, subject: String, message: Vec<u8>) {
                 // Deserialize the full Event<T>
                 match serde_json::from_slice::<Event<T>>(&message) {
                     Ok(event) => {
                         // Pass both payload and metadata
-                        event.payload.on_message(&event.metadata, &subject).await;
+                        self.subscriber.on_message(&event, &subject).await;
                     }
                     Err(e) => {
                         eprintln!("Failed to deserialize event on {}: {}", subject, e);
@@ -82,10 +85,11 @@ pub trait Subscribable: DeserializeOwned + Send + Sync + 'static {
             }
         }
 
-        let handler = Arc::new(MessageHandler::<Self> {
-            _marker: std::marker::PhantomData,
+        let handler = Arc::new(MessageHandler::<Self, T> {
+            subscriber: self,
+            _marker: PhantomData,
         });
 
-        es.subscribe(Self::SUBJECT.to_string(), handler).await
+        es.subscribe(T::SUBJECT.to_string(), handler).await
     }
 }
