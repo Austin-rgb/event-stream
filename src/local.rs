@@ -1,11 +1,11 @@
-use async_trait::async_trait;
 use bytes::Bytes;
 use dashmap::DashMap;
 use std::pin::Pin;
 use std::sync::Arc;
-use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::task::JoinSet;
+
+use crate::{EventError, EventStream, Handler};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
 
@@ -71,9 +71,9 @@ impl EventStream for LocalEventStream {
 
             // Insert sender. Need write lock on shard, but only briefly.
             self.subs
-               .entry(subject.clone())
-               .or_insert_with(Vec::new)
-               .push(tx);
+                .entry(subject.clone())
+                .or_insert_with(Vec::new)
+                .push(tx);
 
             let mut tasks = self._tasks.lock().await;
             tasks.spawn(async move {
