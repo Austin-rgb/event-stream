@@ -41,7 +41,7 @@ impl EventStream for LocalEventStream {
         payload: Vec<u8>,
     ) -> BoxFuture<'a, Result<(), EventError>> {
         Box::pin(async move {
-            let msg = Arc::new((subject.clone(), Bytes::from(payload)));
+            let msg = Arc::new((subject.clone(), Bytes::from(payload.clone())));
 
             // Fast path: no global lock. Only shard lock for this subject.
             let Some(senders) = self.subs.get(&subject) else {
@@ -57,6 +57,10 @@ impl EventStream for LocalEventStream {
                     // For now just ignore to avoid write lock during publish.
                 }
             }
+            tracing::info!(
+                "published {subject} : message = {}",
+                String::from_utf8(payload).unwrap_or("invalid utf-8".to_string())
+            );
             Ok(())
         })
     }
