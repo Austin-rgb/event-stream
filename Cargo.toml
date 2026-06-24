@@ -1,5 +1,5 @@
 [package]
-name = "event-stream"
+name = "typed-eventbus"
 version = "0.1.0"
 edition = "2024"
 description = "Transport-agnostic event streaming with typed events, metadata envelopes, local pub/sub, and NATS support."
