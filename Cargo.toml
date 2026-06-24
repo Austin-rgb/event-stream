@@ -2,6 +2,15 @@
 name = "event-stream"
 version = "0.1.0"
 edition = "2024"
+description = "Transport-agnostic event streaming with typed events, metadata envelopes, local pub/sub, and NATS support."
+license = "MIT"
+repository = "https://github.com/Austin-rgb/event-stream"
+homepage = "https://github.com/Austin-rgb/event-stream"
+documentation = "https://docs.rs/event-stream"
+readme = "README.md"
+keywords = ["events", "nats", "pubsub", "messaging", "event-driven"]
+categories = ["asynchronous", "network-programming"]
+
 
 [dependencies]
 async-nats = "0.47.0"
