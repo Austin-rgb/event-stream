@@ -52,7 +52,7 @@ let metadata = EventMetaData::new("orders-service")
 ### Publishing events
 
 Define an event payload:
-
+```rust
 #[derive(Serialize)]
 struct OrderCreated {
     order_id: String,
@@ -62,9 +62,9 @@ struct OrderCreated {
 impl Publishable for OrderCreated {
     const SUBJECT: &'static str = "orders.created";
 }
-
+```
 Publish:
-
+```rust
 let event = Event::new(
     EventMetaData::new("orders-service"),
     OrderCreated {
@@ -73,13 +73,13 @@ let event = Event::new(
 );
 
 event.publish(bus.clone()).await?;
-
+```
 ---
 
 ### Subscribing to events
 
 Define a payload:
-
+```rust
 #[derive(Deserialize)]
 struct OrderCreated {
     order_id: String,
@@ -88,9 +88,9 @@ struct OrderCreated {
 impl Subscribable for OrderCreated {
     const SUBJECT: &'static str = "orders.created";
 }
-
+```
 Create a subscriber:
-
+```rust
 struct AuditSubscriber;
 
 #[async_trait]
@@ -107,7 +107,7 @@ impl Subscriber<OrderCreated> for AuditSubscriber {
         );
     }
 }
-
+```
 Register:
 
 AuditSubscriber.subscribe(bus.clone()).await?;
@@ -117,9 +117,9 @@ AuditSubscriber.subscribe(bus.clone()).await?;
 ### Local event stream
 
 Useful for testing and single-process deployments.
-
+```rust
 let bus = Arc::new(LocalEventStream::reliable());
-
+```
 The local implementation provides backpressure by awaiting when subscriber queues are full.
 
 ---
@@ -127,11 +127,11 @@ The local implementation provides backpressure by awaiting when subscriber queue
 ### NATS event stream
 
 Connect to a NATS server:
-
+```rust
 let bus = Arc::new(
     NatsEventStream::new("nats://localhost:4222").await?
 );
-
+```
 Publishers and subscribers remain unchanged.
 
 ---
