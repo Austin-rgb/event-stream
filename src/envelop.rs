@@ -73,14 +73,16 @@ impl<T: Publishable + Sync> Event<T> {
         &self,
         es: Arc<dyn EventStream>,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        match es.publish(
-            T::SUBJECT.to_string(),
-            serde_json::to_string(self).unwrap().into_bytes(),
-        )
-        .await{
-Ok(_)=>(),
-Err(e)=>eprintln!("Error in publishing event: {e}")
-};
+        match es
+            .publish(
+                T::SUBJECT.to_string(),
+                serde_json::to_string(self).unwrap().into_bytes(),
+            )
+            .await
+        {
+            Ok(_) => (),
+            Err(e) => eprintln!("Error in publishing event: {e}"),
+        };
         Ok(())
     }
 }
