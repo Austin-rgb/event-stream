@@ -11,7 +11,7 @@ pub struct EventMetaData {
     pub event_id: Uuid,
     pub event_version: String,
     pub occurred_at: Timestamp,
-    pub producer: String,
+    pub producer: Option<String>,
     pub correlation_id: Option<Uuid>,
     pub trace_id: Option<Uuid>,
     pub user_id: Option<Uuid>,
@@ -20,18 +20,23 @@ pub struct EventMetaData {
 }
 
 impl EventMetaData {
-    pub fn new(producer: impl Into<String>) -> Self {
+    pub fn new() -> Self {
         Self {
             event_id: Uuid::new_v4(),
             event_version: "v1".to_string(),
             occurred_at: Timestamp::now(),
-            producer: producer.into(),
+            producer: None,
             correlation_id: None,
             trace_id: None,
             user_id: None,
             session_id: None,
             audience: Vec::new(),
         }
+    }
+    
+    pub fn with_producer(mut self, producer: impl Into<String>)->Self{
+        self.producer = Some(producer.into());
+        self
     }
 
     pub fn with_correlation_id(mut self, id: Uuid) -> Self {
@@ -66,7 +71,8 @@ pub struct Event<T> {
 }
 
 impl<T: Publishable + Sync> Event<T> {
-    pub fn new(metadata: EventMetaData, payload: T) -> Self {
+    pub fn new(payload: T) -> Self {
+        let metadata = EventMetaData::new();
         Self { metadata, payload }
     }
     pub async fn publish(
@@ -84,5 +90,34 @@ impl<T: Publishable + Sync> Event<T> {
             Err(e) => eprintln!("Error in publishing event: {e}"),
         };
         Ok(())
+    }
+    
+    pub fn with_producer(mut self, producer: impl Into<String>)->Self{
+        self.metadata = self.metadata.with_producer(producer);
+        self
+    }
+
+    pub fn with_correlation_id(mut self, id: Uuid) -> Self {
+        self.metadata = self.metadata.with_correlation_id(id);
+        self
+    }
+
+    pub fn with_trace_id(mut self, id: Uuid) -> Self {
+        self.metadata = self.metadata.with_trace_id(id);
+        self
+    }
+
+    pub fn with_user_id(mut self, id: Uuid) -> Self {
+        self.metadata = self.metadata.with_user_id(id);
+        self
+    }
+
+    pub fn with_session_id(mut self, id: Uuid) -> Self {
+        self.metadata = self.metadata.with_session_id(id);
+        self
+    }
+    pub fn with_audience(mut self, aud: Vec<Uuid>) -> Self {
+        self.metadata = self.metadata.with_audience(aud);
+        self
     }
 }
