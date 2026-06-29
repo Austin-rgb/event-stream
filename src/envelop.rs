@@ -4,6 +4,28 @@ use std::error::Error;
 use std::sync::Arc;
 use uuid::Uuid;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Identifier{
+    Uuid(Uuid),
+    Tag(String),
+}
+
+use std::str::FromStr;
+
+impl FromStr for Identifier {
+    type Err = String;
+    
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Try parsing as UUID first
+        if let Ok(uuid) = Uuid::parse_str(s) {
+            return Ok(Identifier::Uuid(uuid));
+        }
+        // Otherwise treat as Tag
+        Ok(Identifier::Tag(s.to_string()))
+    }
+}
+
+
 use crate::{EventStream, Publishable};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,7 +37,7 @@ pub struct EventMetaData {
     pub correlation_id: Option<Uuid>,
     pub trace_id: Option<Uuid>,
     pub user_id: Option<Uuid>,
-    pub audience: Vec<Uuid>,
+    pub audience: Vec<Identifier>,
     pub session_id: Option<Uuid>,
 }
 
@@ -58,7 +80,7 @@ impl EventMetaData {
         self.session_id = Some(id);
         self
     }
-    pub fn with_audience(mut self, aud: Vec<Uuid>) -> Self {
+    pub fn with_audience(mut self, aud: Vec<Identifier>) -> Self {
         self.audience = aud;
         self
     }
@@ -116,7 +138,7 @@ impl<T: Publishable + Sync> Event<T> {
         self.metadata = self.metadata.with_session_id(id);
         self
     }
-    pub fn with_audience(mut self, aud: Vec<Uuid>) -> Self {
+    pub fn with_audience(mut self, aud: Vec<Identifier>) -> Self {
         self.metadata = self.metadata.with_audience(aud);
         self
     }
