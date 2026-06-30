@@ -16,6 +16,15 @@ impl From<Uuid> for Identifier {
     }
 }
 
+impl From<&str> for Identifier{
+    fn from(value: &str) ->Identifier{
+        if let Ok(v) = value.parse(){
+            return v
+        }
+        Identifier::Tag(value.to_string())
+    }
+}
+
 use std::str::FromStr;
 
 impl FromStr for Identifier {
