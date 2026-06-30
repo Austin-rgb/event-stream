@@ -5,16 +5,22 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Identifier{
+pub enum Identifier {
     Uuid(Uuid),
     Tag(String),
+}
+
+impl From<Uuid> for Identifier {
+    fn from(value: Uuid) -> Self {
+        Identifier::Uuid(value)
+    }
 }
 
 use std::str::FromStr;
 
 impl FromStr for Identifier {
     type Err = String;
-    
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // Try parsing as UUID first
         if let Ok(uuid) = Uuid::parse_str(s) {
@@ -24,7 +30,6 @@ impl FromStr for Identifier {
         Ok(Identifier::Tag(s.to_string()))
     }
 }
-
 
 use crate::{EventStream, Publishable};
 
@@ -55,8 +60,8 @@ impl EventMetaData {
             audience: Vec::new(),
         }
     }
-    
-    pub fn with_producer(mut self, producer: impl Into<String>)->Self{
+
+    pub fn with_producer(mut self, producer: impl Into<String>) -> Self {
         self.producer = Some(producer.into());
         self
     }
@@ -113,8 +118,8 @@ impl<T: Publishable + Sync> Event<T> {
         };
         Ok(())
     }
-    
-    pub fn with_producer(mut self, producer: impl Into<String>)->Self{
+
+    pub fn with_producer(mut self, producer: impl Into<String>) -> Self {
         self.metadata = self.metadata.with_producer(producer);
         self
     }
@@ -138,8 +143,20 @@ impl<T: Publishable + Sync> Event<T> {
         self.metadata = self.metadata.with_session_id(id);
         self
     }
-    pub fn with_audience(mut self, aud: Vec<Identifier>) -> Self {
-        self.metadata = self.metadata.with_audience(aud);
+    pub fn with_audience<U>(mut self, aud: Vec<U>) -> Self
+    where
+        U: Into<Identifier>,
+    {
+        self.metadata = self
+            .metadata
+            .with_audience(aud.into_iter().map(Into::into).collect());
+        self
+    }
+    pub fn add_audience<U>(mut self, aud: U) -> Self
+    where
+        U: Into<Identifier>,
+    {
+        self.metadata.audience.push(aud.into());
         self
     }
 }

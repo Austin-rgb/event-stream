@@ -4,7 +4,7 @@ use serde_json::to_string;
 use std::pin::Pin;
 use std::{future::Future, marker::PhantomData};
 mod envelop;
-pub use envelop::{Event, EventMetaData};
+pub use envelop::{Event, EventMetaData, Identifier};
 use std::sync::Arc;
 pub type EventError = Box<dyn std::error::Error + Send + Sync>;
 pub type EventHandler =
