@@ -16,10 +16,10 @@ impl From<Uuid> for Identifier {
     }
 }
 
-impl From<&str> for Identifier{
-    fn from(value: &str) ->Identifier{
-        if let Ok(v) = value.parse(){
-            return v
+impl From<&str> for Identifier {
+    fn from(value: &str) -> Identifier {
+        if let Ok(v) = value.parse() {
+            return v;
         }
         Identifier::Tag(value.to_string())
     }

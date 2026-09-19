@@ -33,7 +33,7 @@ pub trait EventStream: Send + Sync {
 mod local;
 pub use local::LocalEventStream;
 mod nats;
-pub use nats::NatsEventStream;
+pub use nats::{NatsAloStream,NatsEventStream};
 
 #[async_trait]
 pub trait Publishable: Serialize {
