@@ -1446,7 +1446,7 @@ dependencies = [
 
 [[package]]
 name = "typed-eventbus"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-nats",
  "async-trait",
