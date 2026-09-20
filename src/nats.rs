@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use async_nats::{Client, jetstream};
 pub use async_nats::Error;
+use async_nats::{Client, jetstream};
 
 pub struct NatsEventStream {
     client: Client,
@@ -63,7 +63,6 @@ impl EventStream for NatsEventStream {
     }
 }
 
-
 pub struct NatsAloStream {
     js: jetstream::Context,
     group: String,
@@ -71,32 +70,29 @@ pub struct NatsAloStream {
 }
 
 impl NatsAloStream {
-    pub async fn new(url: &str) -> Result<Self, Error> {
+    pub async fn new(url: &str, stream_name: String) -> Result<Self, Error> {
         let client = async_nats::connect(url).await?;
         let js = jetstream::new(client.clone());
-        
-        // ensure default stream exists - change subjects to your needs
-        // or create it externally with `nats stream add`
-        let _ = js.get_or_create_stream(jetstream::stream::Config {
-            name: "EVENTS".to_string(),
-            subjects: vec!["events.>".to_string(), "payment.>".to_string()],
+
+        // Propagate setup failures instead of swallowing them — a bad
+        // config or NATS permissions issue should fail construction here,
+        // not surface later as a confusing "stream not found" in publish/subscribe.
+        js.get_or_create_stream(jetstream::stream::Config {
+            name: stream_name.clone(),
+            subjects: vec![format!("{}.>", stream_name.to_lowercase())],
             ..Default::default()
-        }).await;
+        })
+        .await?;
 
         Ok(Self {
             js,
             group: uuid::Uuid::new_v4().to_string(),
-            stream_name: "EVENTS".to_string(),
+            stream_name,
         })
     }
 
     pub fn with_group(self, group: String) -> Self {
         Self { group, ..self }
-    }
-    
-    pub fn with_stream(mut self, stream: String) -> Self {
-        self.stream_name = stream;
-        self
     }
 }
 
@@ -123,31 +119,40 @@ impl EventStream for NatsAloStream {
         handler: Arc<dyn Handler>,
     ) -> BoxFuture<'a, Result<(), EventError>> {
         Box::pin(async move {
-            let stream = self.js.get_stream(self.stream_name.clone()).await
+            let stream = self
+                .js
+                .get_stream(self.stream_name.clone())
+                .await
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
             // durable_name = your consumer group. Same group = load balanced
-            let consumer = stream.get_or_create_consumer(
-                &self.group,
-                jetstream::consumer::pull::Config {
-                    durable_name: Some(self.group.clone()),
-                    // filter only this subject if needed
-                    filter_subject: subject.clone(),
-                    deliver_policy: jetstream::consumer::DeliverPolicy::All,
-                    ack_policy: jetstream::consumer::AckPolicy::Explicit,
-                    max_ack_pending: 1000,
-                    ..Default::default()
-                },
-            ).await
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let consumer = stream
+                .get_or_create_consumer(
+                    &self.group,
+                    jetstream::consumer::pull::Config {
+                        durable_name: Some(self.group.clone()),
+                        // filter only this subject if needed
+                        filter_subject: subject.clone(),
+                        deliver_policy: jetstream::consumer::DeliverPolicy::All,
+                        ack_policy: jetstream::consumer::AckPolicy::Explicit,
+                        max_ack_pending: 1000,
+                        ..Default::default()
+                    },
+                )
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
-            let mut messages = consumer.messages().await
+            let mut messages = consumer
+                .messages()
+                .await
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
             // spawn persistent loop
             tokio::spawn(async move {
                 while let Some(Ok(msg)) = messages.next().await {
-                    handler.handle(msg.subject.to_string(), msg.payload.to_vec()).await;
+                    handler
+                        .handle(msg.subject.to_string(), msg.payload.to_vec())
+                        .await;
                     // only ack after handler succeeded
                     let _ = msg.ack().await;
                 }
