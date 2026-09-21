@@ -62,7 +62,7 @@ pub trait Subscribable: DeserializeOwned + Send + Sync + 'static {
 #[async_trait]
 pub trait Subscriber<T: Subscribable>: Send + Sync + Sized + 'static {
     // Now receives the full Event<T> with metadata
-    async fn on_message(&self, event: Event<T>, subject: &str);
+    async fn on_message(&self, event: Event<T>, subject: &str) -> Result<(), EventError>;
 
     async fn subscribe(self, es: Arc<dyn EventStream>) -> Result<(), EventError> {
         struct MessageHandler<C: Subscriber<T> + Send + Sync + 'static, T: Subscribable> {
@@ -77,8 +77,7 @@ pub trait Subscriber<T: Subscribable>: Send + Sync + Sized + 'static {
                 match serde_json::from_slice::<Event<T>>(&message) {
                     Ok(event) => {
                         // Pass both payload and metadata
-                        self.subscriber.on_message(event, &subject).await;
-                        Ok(())
+                        self.subscriber.on_message(event, &subject).await
                     }
                     Err(e) => {
                         tracing::error!("Failed to deserialize event on {}: {}", subject, e);

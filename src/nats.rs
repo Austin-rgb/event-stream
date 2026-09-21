@@ -11,6 +11,10 @@ pub struct NatsEventStream {
 impl NatsEventStream {
     pub async fn new(url: &str) -> Result<Self, Error> {
         let client = async_nats::connect(url).await?;
+        NatsEventStream::from_client(client)
+    }
+
+    pub fn from_client(client: Client) -> Result<Self, Error> {
         Ok(Self {
             client,
             group: uuid::Uuid::new_v4().to_string(),
@@ -54,10 +58,13 @@ impl EventStream for NatsEventStream {
                 while let Some(msg) = sub.next().await {
                     match handler
                         .handle(msg.subject.into_string(), msg.payload.to_vec())
-                        .await{
-                            Ok(_)=>(),
-                            Err(e)=>tracing::warn!("event handler failed: {e}, this would not be retried")
-                        };
+                        .await
+                    {
+                        Ok(_) => (),
+                        Err(e) => {
+                            tracing::warn!("event handler failed: {e}, this would not be retried")
+                        }
+                    };
                 }
             });
 
@@ -75,6 +82,10 @@ pub struct NatsAloStream {
 impl NatsAloStream {
     pub async fn new(url: &str, stream_name: String) -> Result<Self, Error> {
         let client = async_nats::connect(url).await?;
+        NatsAloStream::from_client(client, stream_name).await
+    }
+
+    pub async fn from_client(client: Client, stream_name: String) -> Result<Self, Error> {
         let js = jetstream::new(client.clone());
 
         // Propagate setup failures instead of swallowing them — a bad
