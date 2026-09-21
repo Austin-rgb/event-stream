@@ -40,7 +40,7 @@ impl FromStr for Identifier {
     }
 }
 
-use crate::{EventStream, Publishable};
+use crate::EventStream;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventMetaData {
@@ -106,7 +106,7 @@ pub struct Event<T> {
     pub payload: T,
 }
 
-impl<T: Publishable + Sync> Event<T> {
+impl<T: crate::EventType + Sync> Event<T> {
     pub fn new(payload: T) -> Self {
         let metadata = EventMetaData::new();
         Self { metadata, payload }

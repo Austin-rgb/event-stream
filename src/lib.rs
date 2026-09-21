@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use serde::{Serialize, de::DeserializeOwned};
-use serde_json::to_string;
 use std::pin::Pin;
 use std::{future::Future, marker::PhantomData};
 mod envelop;
@@ -35,43 +34,23 @@ pub use local::LocalEventStream;
 mod nats;
 pub use nats::{NatsAloStream, NatsEventStream};
 
-#[async_trait]
-pub trait Publishable: Serialize {
-    const SUBJECT: &'static str;
-
-    async fn publish(&self, bus: Arc<dyn EventStream>) -> Result<(), EventError> {
-        bus.publish(
-            Self::SUBJECT.to_string(),
-            to_string(self).unwrap().into_bytes(),
-        )
-        .await
-    }
-
-    async fn subscribe(
-        bus: Arc<dyn EventStream>,
-        handler: Arc<dyn Handler>,
-    ) -> Result<(), EventError> {
-        bus.subscribe(Self::SUBJECT.to_string(), handler).await
-    }
-}
-
-pub trait Subscribable: DeserializeOwned + Send + Sync + 'static {
+pub trait EventType: Serialize + DeserializeOwned + Send + Sync + 'static {
     const SUBJECT: &'static str;
 }
 
 #[async_trait]
-pub trait Subscriber<T: Subscribable>: Send + Sync + Sized + 'static {
+pub trait Subscriber<T: EventType>: Send + Sync + Sized + 'static {
     // Now receives the full Event<T> with metadata
     async fn on_message(&self, event: Event<T>, subject: &str) -> Result<(), EventError>;
 
     async fn subscribe(self, es: Arc<dyn EventStream>) -> Result<(), EventError> {
-        struct MessageHandler<C: Subscriber<T> + Send + Sync + 'static, T: Subscribable> {
+        struct MessageHandler<C: Subscriber<T> + Send + Sync + 'static, T: EventType> {
             subscriber: C,
             _marker: PhantomData<T>,
         }
 
         #[async_trait]
-        impl<C: Subscriber<T> + Send + Sync + 'static, T: Subscribable> Handler for MessageHandler<C, T> {
+        impl<C: Subscriber<T> + Send + Sync + 'static, T: EventType> Handler for MessageHandler<C, T> {
             async fn handle(&self, subject: String, message: Vec<u8>) -> Result<(), EventError> {
                 // Deserialize the full Event<T>
                 match serde_json::from_slice::<Event<T>>(&message) {
