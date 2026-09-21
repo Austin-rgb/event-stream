@@ -52,9 +52,12 @@ impl EventStream for NatsEventStream {
 
             tokio::spawn(async move {
                 while let Some(msg) = sub.next().await {
-                    handler
+                    match handler
                         .handle(msg.subject.into_string(), msg.payload.to_vec())
-                        .await;
+                        .await{
+                            Ok(_)=>(),
+                            Err(e)=>tracing::warn!("event handler failed: {e}, this would not be retried")
+                        };
                 }
             });
 
@@ -150,11 +153,16 @@ impl EventStream for NatsAloStream {
             // spawn persistent loop
             tokio::spawn(async move {
                 while let Some(Ok(msg)) = messages.next().await {
-                    handler
+                    let _ = match handler
                         .handle(msg.subject.to_string(), msg.payload.to_vec())
-                        .await;
-                    // only ack after handler succeeded
-                    let _ = msg.ack().await;
+                        .await
+                    {
+                        Ok(_) => msg.ack().await,
+                        Err(e) => {
+                            tracing::warn!("event handler failed {e}, this would retry");
+                            Err(e)
+                        }
+                    };
                 }
             });
 

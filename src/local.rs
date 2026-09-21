@@ -85,7 +85,7 @@ impl EventStream for LocalEventStream {
                 // and publishers will await on send(). That's backpressure.
                 while let Some(msg) = rx.recv().await {
                     let (subj, payload) = &*msg; // Arc deref
-                    handler.handle(subj.clone(), payload.to_vec()).await;
+                    let _ = handler.handle(subj.clone(), payload.to_vec()).await;
                 }
             });
 

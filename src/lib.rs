@@ -12,7 +12,7 @@ pub type EventHandler =
 
 #[async_trait]
 pub trait Handler: Send + Sync + 'static {
-    async fn handle(&self, subject: String, message: Vec<u8>);
+    async fn handle(&self, subject: String, message: Vec<u8>) -> Result<(), EventError>;
 }
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -72,15 +72,17 @@ pub trait Subscriber<T: Subscribable>: Send + Sync + Sized + 'static {
 
         #[async_trait]
         impl<C: Subscriber<T> + Send + Sync + 'static, T: Subscribable> Handler for MessageHandler<C, T> {
-            async fn handle(&self, subject: String, message: Vec<u8>) {
+            async fn handle(&self, subject: String, message: Vec<u8>) -> Result<(), EventError> {
                 // Deserialize the full Event<T>
                 match serde_json::from_slice::<Event<T>>(&message) {
                     Ok(event) => {
                         // Pass both payload and metadata
                         self.subscriber.on_message(event, &subject).await;
+                        Ok(())
                     }
                     Err(e) => {
-                        eprintln!("Failed to deserialize event on {}: {}", subject, e);
+                        tracing::error!("Failed to deserialize event on {}: {}", subject, e);
+                        Err(Box::new(e))
                     }
                 }
             }
