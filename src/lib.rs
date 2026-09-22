@@ -53,15 +53,13 @@ pub trait Subscriber<T: EventType>: Send + Sync + Sized + 'static {
         impl<C: Subscriber<T> + Send + Sync + 'static, T: EventType> Handler for MessageHandler<C, T> {
             async fn handle(&self, subject: String, message: Vec<u8>) -> Result<(), EventError> {
                 // Deserialize the full Event<T>
+                // Deserialization errors are absorbed since redeliver cannot fix them
                 match serde_json::from_slice::<Event<T>>(&message) {
-                    Ok(event) => {
-                        // Pass both payload and metadata
-                        self.subscriber.on_message(event, &subject).await
-                    }
-                    Err(e) => {
+                    Ok(event) => self.subscriber.on_message(event, &subject).await,
+
+                    Err(e) => Ok({
                         tracing::error!("Failed to deserialize event on {}: {}", subject, e);
-                        Err(Box::new(e))
-                    }
+                    }),
                 }
             }
         }
