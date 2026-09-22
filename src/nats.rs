@@ -110,6 +110,34 @@ impl NatsAloStream {
     }
 }
 
+// Durable consumer names in NATS may not contain '.', '*', '>' or whitespace
+// (those are subject-token wildcards/separators). Since we derive a
+// per-subject durable name from the subject string, sanitize it so the
+// generated name is always valid.
+fn sanitize_for_durable_name(subject: &str) -> String {
+    subject
+        .chars()
+        .map(|c| {
+            if c == '.' || c == '*' || c == '>' || c.is_whitespace() {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect()
+}
+
+// One durable consumer per (group, subject). Using the group name alone as
+// the durable name meant that subscribing to a second subject under the
+// same group would hit `get_or_create_consumer`, find the consumer already
+// created for the first subject, and silently reuse it — the new
+// subscription would then filter on the wrong subject and receive nothing.
+// Namespacing the durable name by subject keeps groups load-balanced
+// per-subject (as intended) while giving each subject its own consumer.
+fn durable_name(group: &str, subject: &str) -> String {
+    format!("{group}__{}", sanitize_for_durable_name(subject))
+}
+
 impl EventStream for NatsAloStream {
     fn publish<'a>(
         &'a self,
@@ -139,13 +167,14 @@ impl EventStream for NatsAloStream {
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
-            // durable_name = your consumer group. Same group = load balanced
+            // durable_name = group + subject. Same group on the same subject
+            // = load balanced across however many callers subscribe to it.
+            let durable = durable_name(&self.group, &subject);
             let consumer = stream
                 .get_or_create_consumer(
-                    &self.group,
+                    &durable,
                     jetstream::consumer::pull::Config {
-                        durable_name: Some(self.group.clone()),
-                        // filter only this subject if needed
+                        durable_name: Some(durable.clone()),
                         filter_subject: subject.clone(),
                         deliver_policy: jetstream::consumer::DeliverPolicy::All,
                         ack_policy: jetstream::consumer::AckPolicy::Explicit,
@@ -155,6 +184,20 @@ impl EventStream for NatsAloStream {
                 )
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+
+            // Belt-and-braces: `get_or_create_consumer` returns whatever
+            // consumer already exists under this durable name without
+            // reconciling its config. If a caller picks group names that
+            // collide after sanitization (or a consumer was created
+            // out-of-band), fail loudly here instead of silently
+            // subscribing to the wrong subject.
+            let actual_filter = &consumer.cached_info().config.filter_subject;
+            if actual_filter != &subject {
+                return Err(format!(
+                    "durable consumer '{durable}' already exists with filter_subject '{actual_filter}', expected '{subject}' — likely a durable-name collision"
+                )
+                .into());
+            }
 
             let mut messages = consumer
                 .messages()
