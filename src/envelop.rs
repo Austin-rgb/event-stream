@@ -115,11 +115,8 @@ impl<T: crate::EventType + Sync> Event<T> {
         &self,
         es: Arc<dyn EventStream>,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        es.publish(
-            T::SUBJECT.to_string(),
-            serde_json::to_string(self).unwrap().into_bytes(),
-        )
-        .await
+        let payload = serde_json::to_string(self)?.into_bytes();
+        es.publish(T::SUBJECT.to_string(), payload).await
     }
 
     pub fn with_producer(mut self, producer: impl Into<String>) -> Self {

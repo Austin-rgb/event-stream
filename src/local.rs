@@ -41,26 +41,33 @@ impl EventStream for LocalEventStream {
         payload: Vec<u8>,
     ) -> BoxFuture<'a, Result<(), EventError>> {
         Box::pin(async move {
-            let msg = Arc::new((subject.clone(), Bytes::from(payload.clone())));
+            let msg = Arc::new((subject.clone(), Bytes::from(payload)));
 
-            // Fast path: no global lock. Only shard lock for this subject.
-            let Some(senders) = self.subs.get(&subject) else {
-                return Ok(()); // No subscribers = drop. Not an error.
+            // Fast path: no global lock. Only shard lock for this subject, and
+            // only for as long as it takes to clone the sender handles — the
+            // guard is dropped before we hit any await point below.
+            let senders: Vec<Tx> = match self.subs.get(&subject) {
+                Some(senders) => senders.clone(),
+                None => return Ok(()), // No subscribers = drop. Not an error.
             };
 
             // Fan-out. If any queue is full, await = backpressure.
             // This is the reliability guarantee: publish won't return until all
             // subscribers have space in their queue.
-            for tx in senders.iter() {
+            let mut dead = false;
+            for tx in &senders {
                 if tx.send(msg.clone()).await.is_err() {
-                    // Receiver dropped. Remove it lazily on next publish or subscribe.
-                    // For now just ignore to avoid write lock during publish.
+                    // Receiver dropped; sweep it out below.
+                    dead = true;
                 }
             }
-            tracing::info!(
-                "published {subject} : message = {}",
-                String::from_utf8(payload).unwrap_or("invalid utf-8".to_string())
-            );
+
+            if dead {
+                if let Some(mut senders) = self.subs.get_mut(&subject) {
+                    senders.retain(|tx| !tx.is_closed());
+                }
+            }
+
             Ok(())
         })
     }

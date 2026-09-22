@@ -20,7 +20,7 @@ impl NatsEventStream {
             group: uuid::Uuid::new_v4().to_string(),
         })
     }
-    pub async fn with_group(self, group: String) -> Self {
+    pub fn with_group(self, group: String) -> Self {
         Self { group, ..self }
     }
 }
